@@ -1,0 +1,10 @@
+torch==2.12.0
+transformers==5.8.1
+accelerate==1.13.0
+nvitop==1.7.0
+torch-model-profiler==0.1.1
+huggingface_hub==1.15.0
+pandas==3.0.3
+matplotlib==3.10.9
+jupyter==1.1.1
+python-dotenv==1.2.2
