@@ -119,15 +119,13 @@ for length in PROMPT_LENGTHS:
 
     decode_elapsed = statistics.median(decode_times)
 
-    # Decode is only ~23ms per step — too short for the sampler to catch.
-    # Run it in a loop for ~2 seconds so we get enough samples.
     def run_decode_loop():
-        for _ in range(10):
+        for _ in range(150):  # ~3.5 seconds of pure decode
             with torch.no_grad():
                 model(next_token, past_key_values=past_key_values, use_cache=True)
-            torch.cuda.synchronize()   # finish this token fully
-            time.sleep(0.005)          # 5ms gap — GPU goes idle, sampler catches it
- 
+        torch.cuda.synchronize()         
+    
+    time.sleep(1.5)  # let NVML window forget the prefill
     decode_compute, decode_memory = sample_utilization_during(run_decode_loop)
     decode_mem_gb = torch.cuda.memory_allocated() / 1e9 
 
