@@ -2,15 +2,43 @@ import os
 import time
 import torch
 import statistics
+import pynvml
+import threading
 import pandas as pd
 from setup import model_download
 
 RESULTS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "01_prefill_vs_decode.csv")
 
 model, tokenizer, device = model_download.load_model()
-
 PROMPT_LENGTHS = [128, 512, 1024, 2048, 4096]
 results = []
+
+# ── GPU utilization sampler ───────────────────────────────────────────────────
+# Samples SM utilization % in a background thread while the GPU is working.
+# Returns the median — same idea as taking median of timing runs.
+pynvml.nvmlInit()
+gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+ 
+def sample_utilization_during(fn):
+    """Run fn(), sample GPU util every 25ms in background, return median %."""
+    compute_samples = []
+    memory_samples = []
+    stop = threading.Event()
+ 
+    def sampler():
+        while not stop.is_set():
+            rates = pynvml.nvmlDeviceGetUtilizationRates(gpu_handle)
+            compute_samples.append(rates.gpu)
+            memory_samples.append(rates.memory)
+            time.sleep(0.025)
+ 
+    t = threading.Thread(target=sampler, daemon=True)
+    t.start()
+    fn()
+    torch.cuda.synchronize()
+    stop.set()
+    t.join()
+    return statistics.median(samples) if samples else 0
 
 # ── Helper: build input of exact token length ─────────────────────────────────
 # Tokenization is done OUTSIDE the timing window — we're measuring inference,
