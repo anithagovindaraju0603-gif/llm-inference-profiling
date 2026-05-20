@@ -101,7 +101,7 @@ for length in PROMPT_LENGTHS:
         "gpu_util_pct": prefill_compute,
         "gpu_memory_util_pct": prefill_memory
     })
-    print(f"prefill | length={actual_length} | time_taken_sec={prefill_elapsed:.4f}s | tokens_per_sec={actual_length / prefill_elapsed:.1f} tok/s | {prefill_compute:.1f}% gpu util | {prefill_memory:.1f}% gpu memory util")
+    print(f"prefill | length={actual_length} | time_taken_sec={prefill_elapsed:.4f}s | tokens_per_sec={actual_length / prefill_elapsed:.1f} tok/s | gpu_compute={prefill_compute:.1f}% gpu util | gpu_memory={prefill_memory:.1f}% gpu memory util")
 
     # decode — timed, feeds last token with pre-built KV cache
     next_token = inputs["input_ids"][:, -1:]
@@ -138,7 +138,7 @@ for length in PROMPT_LENGTHS:
         "gpu_util_pct": decode_compute,
         "gpu_memory_util_pct": decode_memory
     })
-    print(f"decode  | kv_length={actual_length} | time_taken_sec={decode_elapsed:.4f}s | tokens_per_sec={1 / decode_elapsed:.1f} tok/s | {decode_compute:.1f}% gpu util | {decode_memory:.1f}% gpu memory util")
+    print(f"decode  | kv_length={actual_length} | time_taken_sec={decode_elapsed:.4f}s | tokens_per_sec={1 / decode_elapsed:.1f} tok/s | gpu_compute={decode_compute:.1f}% gpu util | gpu_memory={decode_memory:.1f}% gpu memory util")
 
 # ── Save results ──────────────────────────────────────────────────────────────
 # Save as CSV so the analysis notebook can load it without re-running.
