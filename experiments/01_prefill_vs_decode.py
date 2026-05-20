@@ -38,7 +38,9 @@ def sample_utilization_during(fn):
     torch.cuda.synchronize()
     stop.set()
     t.join()
-    return statistics.median(samples) if samples else 0
+    compute_median = statistics.median(compute_samples) if compute_samples else 0
+    memory_median = statistics.median(memory_samples) if memory_samples else 0
+    return compute_median, memory_median
 
 # ── Helper: build input of exact token length ─────────────────────────────────
 # Tokenization is done OUTSIDE the timing window — we're measuring inference,
@@ -81,17 +83,25 @@ for length in PROMPT_LENGTHS:
         torch.cuda.synchronize()
         times.append(time.perf_counter() - start)
     prefill_elapsed = statistics.median(times)
-    prefill_mem_gb = torch.cuda.memory_allocated() / 1e9 
     past_key_values = prefill_out.past_key_values
+
+    def run_prefill():
+        with torch.no_grad():
+            model(**inputs, use_cache=True)
+ 
+    prefill_compute, prefill_memory = sample_utilization_during(run_prefill)
+    prefill_mem_gb = torch.cuda.memory_allocated() / 1e9 
 
     results.append({
         "phase": "prefill",
         "prompt_length": actual_length,
         "time_sec": prefill_elapsed,
         "tokens_per_sec": actual_length / prefill_elapsed,
-        "mem_allocated_gb": prefill_mem_gb
+        "mem_allocated_gb": prefill_mem_gb,
+        "gpu_util_pct": prefill_compute,
+        "gpu_memory_util_pct": prefill_memory
     })
-    print(f"prefill | length={actual_length} | {prefill_elapsed:.4f}s | {actual_length / prefill_elapsed:.1f} tok/s")
+    print(f"prefill | length={actual_length} | time_taken_sec={prefill_elapsed:.4f}s | tokens_per_sec={actual_length / prefill_elapsed:.1f} tok/s | {prefill_compute:.1f}% gpu util | {prefill_memory:.1f}% gpu memory util")
 
     # decode — timed, feeds last token with pre-built KV cache
     next_token = inputs["input_ids"][:, -1:]
@@ -108,6 +118,15 @@ for length in PROMPT_LENGTHS:
         decode_times.append(time.perf_counter() - start)
 
     decode_elapsed = statistics.median(decode_times)
+
+    # Decode is only ~23ms per step — too short for the sampler to catch.
+    # Run it in a loop for ~2 seconds so we get enough samples.
+    def run_decode_loop():
+        for _ in range(80):
+            with torch.no_grad():
+                model(next_token, past_key_values=past_key_values, use_cache=True)
+ 
+    decode_compute, decode_memory = sample_utilization_during(run_decode_loop)
     decode_mem_gb = torch.cuda.memory_allocated() / 1e9 
 
     results.append({
@@ -115,9 +134,11 @@ for length in PROMPT_LENGTHS:
         "prompt_length": actual_length,
         "time_sec": decode_elapsed,
         "tokens_per_sec": 1 / decode_elapsed,
-        "mem_allocated_gb": decode_mem_gb
+        "mem_allocated_gb": decode_mem_gb,
+        "gpu_util_pct": decode_compute,
+        "gpu_memory_util_pct": decode_memory
     })
-    print(f"decode  | kv_length={actual_length} | {decode_elapsed:.4f}s | {1 / decode_elapsed:.1f} tok/s")
+    print(f"decode  | kv_length={actual_length} | time_taken_sec={decode_elapsed:.4f}s | tokens_per_sec={1 / decode_elapsed:.1f} tok/s | {decode_compute:.1f}% gpu util | {decode_memory:.1f}% gpu memory util")
 
 # ── Save results ──────────────────────────────────────────────────────────────
 # Save as CSV so the analysis notebook can load it without re-running.
