@@ -1,10 +1,11 @@
 
 import os
-from dotenv import load_dotenv
 from huggingface_hub import login
 
-load_dotenv()
-login(token=os.environ['hf_token'])
+hf_token = os.environ.get('hf_token')
+if not hf_token:
+    raise ValueError("hf_token not found in .env file")
+login(token=hf_token)
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
