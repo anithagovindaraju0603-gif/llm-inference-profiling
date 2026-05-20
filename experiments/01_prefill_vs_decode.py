@@ -30,7 +30,7 @@ def sample_utilization_during(fn):
             rates = pynvml.nvmlDeviceGetUtilizationRates(gpu_handle)
             compute_samples.append(rates.gpu)
             memory_samples.append(rates.memory)
-            time.sleep(0.025)
+            time.sleep(0.001)
  
     t = threading.Thread(target=sampler, daemon=True)
     t.start()
@@ -122,9 +122,8 @@ for length in PROMPT_LENGTHS:
     # Decode is only ~23ms per step — too short for the sampler to catch.
     # Run it in a loop for ~2 seconds so we get enough samples.
     def run_decode_loop():
-        for _ in range(80):
-            with torch.no_grad():
-                model(next_token, past_key_values=past_key_values, use_cache=True)
+        with torch.no_grad():
+            model(next_token, past_key_values=past_key_values, use_cache=True)
  
     decode_compute, decode_memory = sample_utilization_during(run_decode_loop)
     decode_mem_gb = torch.cuda.memory_allocated() / 1e9 
