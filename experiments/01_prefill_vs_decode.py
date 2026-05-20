@@ -12,7 +12,7 @@ PROMPT_LENGTHS = [128, 512, 1024, 2048, 4096]
 results = []
 
 # ── Warmup ────────────────────────────────────────────────────────────────────
-# First runs include CUDA kernel compilation and cache warming — not representative.
+# First runs include CUDA kernel compilation and cache warming — not representative. 3 times!!
 # We use model() directly (not generate) to match what prefill measurement does.
 dummy = tokenizer("Hello world", return_tensors="pt").to(device)
 for _ in range(3):
