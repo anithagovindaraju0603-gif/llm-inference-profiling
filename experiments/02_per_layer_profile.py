@@ -76,9 +76,9 @@ rows = []
 for evt in decode_table:
     rows.append({
         "name": evt.key,
-        "cuda_time_ms": evt.cuda_time_total / 1000,   # microseconds → ms
+        "cuda_time_ms": evt.self_cuda_time_total / 1000,   # microseconds → ms
         "cpu_time_ms":  evt.cpu_time_total  / 1000,
-        "cuda_pct":     evt.cuda_time_total / max(sum(e.cuda_time_total for e in decode_table), 1) * 100,
+        "cuda_pct":     evt.self_cuda_time_total / max(sum(e.self_cuda_time_total for e in decode_table), 1) * 100,
         "calls":        evt.count,
         "input_shapes": str(evt.input_shapes) if hasattr(evt, "input_shapes") else "",
     })
@@ -119,9 +119,9 @@ rows = []
 for evt in prefill_table:
     rows.append({
         "name": evt.key,
-        "cuda_time_ms": evt.cuda_time_total / 1000,
+        "cuda_time_ms": evt.self_cuda_time_total / 1000,
         "cpu_time_ms":  evt.cpu_time_total  / 1000,
-        "cuda_pct":     evt.cuda_time_total / max(sum(e.cuda_time_total for e in prefill_table), 1) * 100,
+        "cuda_pct":     evt.self_cuda_time_total / max(sum(e.self_cuda_time_total for e in prefill_table), 1) * 100,
         "calls":        evt.count,
         "input_shapes": str(evt.input_shapes) if hasattr(evt, "input_shapes") else "",
     })
