@@ -8,4 +8,5 @@ pandas==3.0.3
 matplotlib==3.10.9
 jupyter==1.1.1
 python-dotenv==1.2.2
-pynvml
+#pynvml # seems like deprecated! use the below package instead
+nvidia-ml-py

@@ -2,7 +2,7 @@ import os
 import time
 import torch
 import statistics
-import pynvml
+import nvidia_ml_py as pynvml 
 import threading
 import pandas as pd
 from setup import model_download
