@@ -20,7 +20,7 @@ pynvml.nvmlInit()
 gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
  
 def sample_utilization_during(fn):
-    """Run fn(), sample GPU util every 25ms in background, return median %."""
+    """Run fn(), sample GPU util every 1ms in background, return median %."""
     compute_samples = []
     memory_samples = []
     stop = threading.Event()
