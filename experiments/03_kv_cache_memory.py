@@ -208,6 +208,55 @@ for bs in BATCH_SIZES:
 
 df_oom = pd.DataFrame(oom_rows)
 df_oom.to_csv(os.path.join(RESULTS_DIR, "03_oom_boundary.csv"), index=False)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SUB-TASK D: Maximum sequence length boundary sweep
+# Fixed batch size: 1. Try seq_len 16384, 32768, 65536.
+# Find the maximum context length this GPU can handle.
+# ─────────────────────────────────────────────────────────────────────────────
+seq_len = [16384, 32768, 65536]
+oom_seq_rows = []
+print("\n=== OOM boundary sweep across sequence lengths ===")
+
+for seq in seq_len:
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    try:
+        inputs = make_input(seq)
+        with torch.no_grad():
+            out = model(**inputs, use_cache = True)
+        torch.cuda.synchronize()
+
+        mem = mem_gb()
+        kv_overhead = mem - baseline_gb
+        status = "ok"
+        print(f"  seq_len={seq:6d}: {mem:.2f} GB total — OK")
+
+        del out, inputs
+        torch.cuda.empty_cache()
+    except RuntimeError as e:
+        if "out of memory" in str(e).lower():
+            mem = None
+            kv_overhead = None
+            status = "OOM"
+            print(f"  seq_len={seq:6d}: OOM")
+            torch.cuda.empty_cache()
+            gc.collect()
+        else:
+            raise
+    oom_seq_rows.append({
+        "batch_size": 1,   # fixed batch size
+        "seq_len": seq,
+        "mem_allocated_gb": mem,
+        "kv_cache_overhead_gb": kv_overhead,
+        "status": status
+    })
+
+df_oom_seq = pd.DataFrame(oom_seq_rows)
+df_oom_seq.to_csv(os.path.join(RESULTS_DIR, "03_oom_boundary_seq.csv"), index=False)
+
 print(f"\nSaved → results/03_kv_cache_snapshots.csv")
 print(f"Saved → results/03_theory_vs_actual.csv")
 print(f"Saved → results/03_oom_boundary.csv")
+print(f"Saved → results/03_oom_boundary_seq.csv")
