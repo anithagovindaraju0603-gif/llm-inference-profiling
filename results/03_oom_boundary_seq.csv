@@ -1,0 +1,4 @@
+batch_size,seq_len,mem_allocated_gb,kv_cache_overhead_gb,status
+1,16384,22.444525056,6.350438912000001,ok
+1,32768,,,OOM
+1,65536,,,OOM
