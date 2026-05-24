@@ -145,7 +145,7 @@ for length in PREFILL_LENGTHS:
             print(f"  decode step {step:3d}: {m:.3f} GB")
 
     # Free the KV cache before next iteration
-    del past_kv, out, step_out
+    del past_kv, step_out
     torch.cuda.empty_cache()
     gc.collect()
 
