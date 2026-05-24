@@ -95,9 +95,14 @@ for length in PREFILL_LENGTHS:
         out = model(**inputs, use_cache=True)
     torch.cuda.synchronize()
 
+    past_kv = out.past_key_values  # save KV cache first
+    del out                         # delete everything else
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+
     mem_after_prefill = mem_gb()
     kv_cache_overhead = mem_after_prefill - baseline_gb
-    past_kv = out.past_key_values
 
     print(f"  After prefill:  {mem_after_prefill:.3f} GB total, {kv_cache_overhead:.3f} GB KV cache")
 
