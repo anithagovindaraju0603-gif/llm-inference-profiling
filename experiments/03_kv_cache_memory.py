@@ -214,7 +214,7 @@ df_oom.to_csv(os.path.join(RESULTS_DIR, "03_oom_boundary.csv"), index=False)
 # Fixed batch size: 1. Try seq_len 16384, 32768, 65536.
 # Find the maximum context length this GPU can handle.
 # ─────────────────────────────────────────────────────────────────────────────
-seq_len = [16384, 32768, 65536]
+seq_len = [16384, 32768, 65536, 131072]
 oom_seq_rows = []
 print("\n=== OOM boundary sweep across sequence lengths ===")
 
@@ -228,12 +228,19 @@ for seq in seq_len:
             out = model(**inputs, use_cache = True)
         torch.cuda.synchronize()
 
+        past_kv = out.past_key_values  # save KV cache first
+        del out                         # delete everything else
+        gc.collect()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
         mem = mem_gb()
         kv_overhead = mem - baseline_gb
+
         status = "ok"
         print(f"  seq_len={seq:6d}: {mem:.2f} GB total — OK")
 
-        del out, inputs
+        del past_kv
         torch.cuda.empty_cache()
     except RuntimeError as e:
         if "out of memory" in str(e).lower():
