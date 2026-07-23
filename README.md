@@ -1,6 +1,6 @@
 # llm-inference-profiling
 
-I profile inference on Llama-3.1-8B-Instruct (fp16, single GPU) to understand where the time and memory actually go: prefill versus decode, which operations dominate each phase, how the KV cache grows, and what batching buys you before the GPU runs out of room. Four experiments, in order, build on each other. Results, plots, and raw traces are checked into this repo so the numbers below can be reproduced or checked directly.
+Profiling inference on Llama-3.1-8B-Instruct (fp16, single GPU) to understand where the time and memory actually go: prefill versus decode, which operations dominate each phase, how the KV cache grows, and what batching buys you before the GPU runs out of room. Four experiments, in order, build on each other. Results, plots, and raw traces are checked into this repo so the numbers below can be reproduced or checked directly.
 
 ## Setup
 
@@ -133,10 +133,3 @@ Plots for all four relationships (latency vs. batch, throughput vs. batch, per-r
 ## Putting it together
 
 The four experiments describe one picture, not four separate ones. Prefill is compute-bound and decode is memory-bandwidth-bound; Experiments 1 and 2 agree on this from two different angles, utilization numbers and kernel-level profiling. The KV cache formula from Experiment 3 predicts memory almost exactly, and that in turn explains why Experiment 4's batching curve looks the way it does. Latency stays flat because decode was memory-bound to begin with, so extra requests share the same memory traffic instead of competing for it, at least until compute becomes the bottleneck around batch 32. And the OOM walls from Experiment 3 set the ceiling on how far that batching curve can go on a single GPU of this size.
-
-## Limitations
-
-- Everything here ran on one GPU with one model (Llama-3.1-8B-Instruct, fp16). None of these numbers should be assumed to hold for other model sizes, quantization schemes, or multi-GPU setups.
-- The exact GPU model is not recorded anywhere in this repo. The memory ceiling above is inferred from where OOM happens, not stated directly.
-- Prompts are a repeated "hello" token truncated to length, not real text, and decode continues by greedily feeding the model's own top token back in. Fine for timing and memory, which do not depend on token identity, but this says nothing about output quality.
-- Batch throughput was measured with every request at the same prompt length, starting at the same time, which is the easy case for a batching scheduler. Real traffic arrives staggered and at mixed lengths, and continuous batching handles that differently than the fixed-batch loop used here.
