@@ -39,11 +39,26 @@ torch.cuda.synchronize()
 
 print("Warmup done. Starting profiling runs...")
 
+# Decode-specific warmup — warms up the KV cache path
+with torch.no_grad():
+    warmup_prefill = model(**make_input(512), use_cache=True)
+    warmup_kv = warmup_prefill.past_key_values
+    warmup_token = make_input(512)["input_ids"][:, -1:]
+    for _ in range(3):
+        warmup_out = model(warmup_token, past_key_values=warmup_kv, use_cache=True)
+        warmup_token = warmup_out.logits[:, -1:].argmax(-1)
+        warmup_kv = warmup_out.past_key_values
+    del warmup_prefill, warmup_kv, warmup_out
+    torch.cuda.empty_cache()
+
 # ── Main loop: batch size sweep at fixed prompt length and decode steps ─────────────────────────────────────────────
 results = []
 for batch in batch_size:
     torch.cuda.empty_cache()
     gc.collect()
+
+    #reset the peak memory tracker
+    torch.cuda.reset_peak_memory_stats()
 
     #prefill
     try:
@@ -77,6 +92,7 @@ for batch in batch_size:
     #decode
     step_times = []
     next_token = inputs["input_ids"][:,-1:]
+
     try:
         for i in range(decode_steps):
             torch.cuda.synchronize()
@@ -105,14 +121,14 @@ for batch in batch_size:
             raise
     #Compute stats - p50 and p99
     p50 = statistics.median(step_times)
-    p99 = statistics.quantiles(step_times, n=100)[98] if len(step_times) >= 100 else max(step_times)  # 99th percentile is the 98th quantile in 100 divisions
+    p99 = statistics.quantiles(step_times, n=100)[98]  # 99th percentile - Worst case scenario
     print(f"Batch size {batch} → p50 decode step time: {p50:.3f}s, p99 decode step time: {p99:.3f}s")
     tps_per_request = 1 / p50 # tokens per second per request
     total_throughput = batch * tps_per_request
     print(f"Batch size {batch} → Total throughput: {total_throughput:.1f} tokens/s")
 
     #Capture memory utilization during decode steps
-    mem_util = mem_gb()
+    mem_util = torch.cuda.max_memory_allocated() / 1e9
 
     del past_kv, decode_out
     torch.cuda.empty_cache()
