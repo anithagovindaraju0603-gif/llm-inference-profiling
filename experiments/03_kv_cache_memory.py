@@ -5,6 +5,7 @@
 #   results/03_kv_cache_snapshots.csv   — memory at each prefill length + decode steps
 #   results/03_oom_boundary.csv         — batch size OOM sweep
 #   results/03_theory_vs_actual.csv     — predicted vs measured per seq_len
+#   results/03_oom_boundary_seq.csv     — sequence length OOM sweep
 
 import os
 import gc
@@ -114,7 +115,6 @@ for length in PREFILL_LENGTHS:
         "kv_cache_overhead_gb": kv_cache_overhead,
     })
 
-    # Compare to theory
     predicted = df_theory.loc[df_theory.seq_len == length, "predicted_kv_cache_gb"]
     pred_val  = predicted.values[0] if len(predicted) > 0 else None
     theory_actual_rows.append({
@@ -179,19 +179,25 @@ for bs in BATCH_SIZES:
             out = model(**inputs, use_cache=True)
         torch.cuda.synchronize()
 
+        past_kv = out.past_key_values  # save KV cache first
+        del out                         # delete everything else
+        gc.collect()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
         m = mem_gb()
         kv_overhead = m - baseline_gb
         status = "ok"
         print(f"  batch_size={bs:2d}: {m:.2f} GB total, {kv_overhead:.2f} GB KV — OK")
 
-        del out, inputs
+        del past_kv, inputs
         torch.cuda.empty_cache()
 
     except RuntimeError as e:
         if "out of memory" in str(e).lower():
-            m       = None
+            m           = None
             kv_overhead = None
-            status  = "OOM"
+            status      = "OOM"
             print(f"  batch_size={bs:2d}: OOM")
             torch.cuda.empty_cache()
             gc.collect()
@@ -214,7 +220,8 @@ df_oom.to_csv(os.path.join(RESULTS_DIR, "03_oom_boundary.csv"), index=False)
 # Fixed batch size: 1. Try seq_len 16384, 32768, 65536.
 # Find the maximum context length this GPU can handle.
 # ─────────────────────────────────────────────────────────────────────────────
-seq_len = [16384, 32768, 65536, 131072]
+
+seq_len = [16384, 32768, 65536]
 oom_seq_rows = []
 print("\n=== OOM boundary sweep across sequence lengths ===")
 
@@ -225,7 +232,7 @@ for seq in seq_len:
     try:
         inputs = make_input(seq)
         with torch.no_grad():
-            out = model(**inputs, use_cache = True)
+            out = model(**inputs, use_cache=True)
         torch.cuda.synchronize()
 
         past_kv = out.past_key_values  # save KV cache first
@@ -236,22 +243,23 @@ for seq in seq_len:
 
         mem = mem_gb()
         kv_overhead = mem - baseline_gb
-
         status = "ok"
         print(f"  seq_len={seq:6d}: {mem:.2f} GB total — OK")
 
         del past_kv
         torch.cuda.empty_cache()
+
     except RuntimeError as e:
         if "out of memory" in str(e).lower():
-            mem = None
+            mem         = None
             kv_overhead = None
-            status = "OOM"
+            status      = "OOM"
             print(f"  seq_len={seq:6d}: OOM")
             torch.cuda.empty_cache()
             gc.collect()
         else:
             raise
+
     oom_seq_rows.append({
         "batch_size": 1,   # fixed batch size
         "seq_len": seq,
